@@ -44,7 +44,7 @@ Esperado  Previsto  Ocorrencias
 ## Problema 1
 
 ### Evidência
-![evidencia](images/dense_backward.png)
+![evidencia](dense_backward.png)
 
 ### Primeira Iteração
 Foi alterado o `Baren::Backward` para que os loops sejam paralelizados
@@ -54,7 +54,7 @@ Tempo de treino 33.4338 s
 ```
 
 
-![evidencia](images/otim1_profiling.png)
+![evidencia](otim1_profiling.png)
 **38% do tempo da GPU foi dedicado à transferência de dados**
 
 HIPOTESE: Aumentando o tamanho dos blocos a transferência fica menos recorrente.
@@ -73,3 +73,19 @@ Ao invés de chamar o cudaMalloc toda a vez que a função `Backward` for chamad
 Tempo de treino 19.0765 s
 ```
 
+## Resultado
+![evidencia](otim1.1_profiling.png)
+O resultado final é mais lento que o caso base.
+Isso se deve ao fato do `Forward` não utilizar paralelismo de GPU e exigir que vários dados sejam sincronizados da CPU a cada chamada da `Backwards` e não aproveitem da memória compartilhada da GPU.
+
+Com a paralelização do Forward, assim como o Backward, é possível fazer todas as operações diretamente em GPU exigindo poucos carregamentos de volta para a CPU.
+
+
+Resumo das etapas
+---
+
+| Hardware de execução |                  Commit                  | Tempo de execução |
+| :------------------: | :--------------------------------------: | :---------------: |
+| Monstrao (merry_cpu) |              (Código Base)               |      14.55s       |
+| Monstrao (merry_gpu) | Backward Propagation paralelizada em GPU |      19.07s       |
+| Monstrao (merry_gpu) | Otimização da alocação da memória de GPU |      33.43s       |
