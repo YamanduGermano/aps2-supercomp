@@ -50,38 +50,7 @@ Esperado  Previsto  Ocorrencias
 Foi alterado o `Baren::Backward` para que os loops sejam paralelizados
 
 ```raw
-TREINO | 3823 imagens
-Epoca  1/51 | perda media 0.4129
-Epoca  6/51 | perda media 0.0442
-Epoca 11/51 | perda media 0.0312
-Epoca 16/51 | perda media 0.0261
-Epoca 21/51 | perda media 0.0227
-Epoca 26/51 | perda media 0.0204
-Epoca 31/51 | perda media 0.0184
-Epoca 36/51 | perda media 0.0169
-Epoca 41/51 | perda media 0.0156
-Epoca 46/51 | perda media 0.0144
-Epoca 51/51 | perda media 0.0135
 Tempo de treino 33.4338 s
-
-AVALIACAO FINAL
-Acuracia 95.4% | 1714 acertos em 1797 imagens
-Perda media 0.0447
-
-ALGUMAS INFERENCIAS
-Esperado  Previsto
-       0         0
-       1         1
-       2         8
-       3         3
-       5         9
-       7         9
-
-CONFUSOES MAIS FREQUENTES
-Esperado  Previsto  Ocorrencias
-       7         9           10
-       3         2            7
-       8         1            7
 ```
 
 
@@ -94,4 +63,13 @@ HIPOTESE: Aumentando o tamanho dos blocos a transferência fica menos recorrente
 256 threads/bloco: "Tempo de treino 30.8344 s"
 1024 threads/bloco: "Tempo de treino 31.0147 s"
 
-CONCLUÃO: O tamanho dos blocos não é o culpado pela transferência
+CONCLUSÃO: O tamanho dos blocos não é o culpado pela transferência
+
+### Segunda Iteração
+Otimização dos recursos de memória.
+Ao invés de chamar o cudaMalloc toda a vez que a função `Backward` for chamada, deixar o setup da GPU apenas no construtor que será lançado na criação do objeto. Assim, sempre que for criado uma nova instância, o código aloca de uma vez o espaço necessário para ela em GPU.
+
+```raw
+Tempo de treino 19.0765 s
+```
+

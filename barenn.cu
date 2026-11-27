@@ -78,6 +78,13 @@ class DenseLayer {
     // Dados do último forward usados para calcular os gradientes.
     vector<float> last_input;
     vector<float> last_z;
+    
+    // Setup GPU
+    float* d_wghts;
+    float* d_delta;
+    float* d_grad_in;
+    float* d_bias;
+    float* d_input;
 
 public:
     DenseLayer(
@@ -94,6 +101,18 @@ public:
                 weights[row*input_size + column] = distribution(gen);
             }
         }
+
+
+        // Alocação de recursos na GPU
+        cudaMalloc(&d_wghts, static_cast<size_t>(in_features) * out_features * sizeof(float));
+        cudaMalloc(&d_delta, static_cast<size_t>(out_features) * sizeof(float));
+        cudaMalloc(&d_grad_in, static_cast<size_t>(in_features) * sizeof(float));
+        cudaMalloc(&d_bias, static_cast<size_t>(out_features) * sizeof(float));
+        cudaMalloc(&d_input, static_cast<size_t>(in_features) * sizeof(float));
+        
+        // Transferencia de dados CPU → GPU
+        cudaMemcpy(d_bias, bias.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_wghts, weights.data(), static_cast<size_t>(in_features) * out_features * sizeof(float), cudaMemcpyHostToDevice);
     }
 
     vector<float> Forward(vector<float> input) {
@@ -117,35 +136,16 @@ public:
         // Delta é o gradiente da perda em relação à soma antes da ativação.
         // Na ReLU, o gradiente passa apenas quando essa soma é positiva.
 
-        // Setup GPU
-        float* d_wghts;
-        float* d_delta;
-        float* d_grad_in;
-        float* d_bias;
-        float* d_input;
-
-        const size_t wsize =
-            static_cast<size_t>(in_features) * out_features * sizeof(float);
-        const size_t gsize = static_cast<size_t>(in_features) * sizeof(float);
-        const size_t dbsize = static_cast<size_t>(out_features) * sizeof(float);
-
-        cudaMalloc(&d_wghts, wsize);
-        cudaMalloc(&d_grad_in, gsize);
-        cudaMalloc(&d_delta, dbsize);
-        cudaMalloc(&d_bias, dbsize);
-        cudaMalloc(&d_input, gsize);
-
         vector<float> delta(out_features);
         for (int i = 0; i < out_features; ++i) {
             delta[i] = final ? grad_out[i]
                              : grad_out[i] * (last_z[i] > 0.0f ? 1.0f : 0.0f);
         }
 
-        // Transferencia de dados CPU → GPU
-        cudaMemcpy(d_wghts, weights.data(), wsize, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_delta, delta.data(), dbsize, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_bias, bias.data(), dbsize, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_input, last_input.data(), gsize, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_delta, delta.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_input, last_input.data(), static_cast<size_t>(in_features) * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_bias, bias.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
+
 
         constexpr int threads_per_block = 128;
         const int grad_blocks =
@@ -155,22 +155,34 @@ public:
 
         backward_grad_in<<<grad_blocks, threads_per_block>>>(
             d_delta, d_wghts, d_grad_in, in_features, out_features);
+        // const float* delta,
+        // const float* weights,
+        // float* grad_in,
+        // int in_features,
+        // int out_features
 
         backward_weights_calc<<<update_blocks, threads_per_block>>>(
-            d_delta, d_wghts, d_bias, d_input, learning_rate,
-            in_features, out_features);
+            d_delta, d_wghts, d_bias, d_input, learning_rate, in_features, out_features);
+        // const float* delta,
+        // float* weights,
+        // float* bias,
+        // const float* input,
+        // float learning_rate,
+        // int in_features,
+        // int out_features
+
         cudaDeviceSynchronize();
 
         vector<float> grad_in(in_features);
         // Transferencia de dados GPU → CPU
-        cudaMemcpy(grad_in.data(), d_grad_in, gsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy(weights.data(), d_wghts, wsize, cudaMemcpyDeviceToHost);
-        cudaMemcpy(bias.data(), d_bias, dbsize, cudaMemcpyDeviceToHost);
+        cudaMemcpy(grad_in.data(), d_grad_in, static_cast<size_t>(in_features) * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(weights.data(), d_wghts, static_cast<size_t>(in_features) * out_features * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(bias.data(), d_bias, static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyDeviceToHost);
         
         return grad_in;
     }
-};
 
+};
 
 struct Amostra {
     vector<float> imagem;
@@ -352,8 +364,6 @@ int main(int argc, char** argv) {
         Barenn::DenseLayer l3(16, Barenn::classes, true);
         vector<float> gradiente(Barenn::classes);
         array<double, epocas> perdas{};
-        
-        vector<double> d_A, d_B, d_C;
 
         // A medição inclui forward, perda e backward de todas as épocas.
         const auto inicio = chrono::steady_clock::now();
