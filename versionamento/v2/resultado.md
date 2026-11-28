@@ -98,6 +98,6 @@ Resumo das etapas
 
 | Hardware de execução |              Commit              | Tempo de execução |
 | :------------------: | :------------------------------: | :---------------: |
-|  Franky (merry_cpu)  |          (Código Base)           |      14.55s       |
+|  Franky (merry_cpu)  |          (Código Base)           |       5.32s       |
 |  Franky (merry_gpu)  |               (V1)               |      19.07s       |
 |  Franky (merry_gpu)  | Forward com paralelização em GPU |      16.13s       |

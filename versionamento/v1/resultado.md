@@ -1,7 +1,7 @@
 # Relatório de Desenvolvimento
 
 ## Código base:
-O código base é _sequencial em CPU_ e possui tempo de execução de **14.5509 s** no Cluster SDumont.
+O código base é _sequencial em CPU_ e possui tempo de execução de **5.3256 s** no Cluster Franky.
 
 Saída do código base:
 ---
@@ -19,7 +19,7 @@ Epoca 36/51 | perda media 0.0169
 Epoca 41/51 | perda media 0.0155
 Epoca 46/51 | perda media 0.0145
 Epoca 51/51 | perda media 0.0135
-Tempo de treino 14.5509 s
+Tempo de treino 5.3256 s
 
 AVALIACAO FINAL
 Acuracia 95.5% | 1717 acertos em 1797 imagens
@@ -40,6 +40,17 @@ Esperado  Previsto  Ocorrencias
        8         1            6
        3         2            5
 ```
+
+## Flags de otimização
+
+Compilando o código sequencial com a flag -O3, é possível notar uma melhora significativa na performance:
+
+```raw
+Tempo de treino 0.3617 s
+```
+
+Sem qualquer alteração no código base, é possível obter bastante performance utilizando as otimizações do compilador rodando em CPU.
+
 
 ## Problema 1
 
@@ -86,6 +97,6 @@ Resumo das etapas
 
 | Hardware de execução |                  Commit                  | Tempo de execução |
 | :------------------: | :--------------------------------------: | :---------------: |
-| Monstrao (merry_cpu) |              (Código Base)               |      14.55s       |
+| Monstrao (merry_cpu) |              (Código Base)               |       5.32s       |
 | Monstrao (merry_gpu) | Backward Propagation paralelizada em GPU |      33.43s       |
 | Monstrao (merry_gpu) | Otimização da alocação da memória de GPU |      19.07s       |

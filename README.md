@@ -1,3 +1,24 @@
+## Sumário executivo
+
+| Versão | Implementação | Tempo de execução registrado | Referência |
+| --- | --- | ---: | --- |
+| Baseline Legado | CPU sequencial | 5.3256 | [Relatório V1](versionamento/v1/resultado.md) |
+| CUDA Inicial | Backward em GPU, após otimização da alocação | 19,0765 s (33,4338 s na primeira iteração) | [Issue #1](https://github.com/YamanduGermano/aps2-supercomp/issues/1) · [tag `v1-backward-gpu`](https://github.com/YamanduGermano/aps2-supercomp/tree/v1-backward-gpu) |
+| CUDA Melhorado | Forward e Backward em GPU | 16,1344 s | [Issue #3](https://github.com/YamanduGermano/aps2-supercomp/issues/3) · [tag `v2-forward-gpu`](https://github.com/YamanduGermano/aps2-supercomp/tree/v2-forward-gpu) |
+
+Os tempos acima reproduzem os resultados documentados; As otimizações CUDA registradas continuam mais lentas que o baseline informado.
+
+### Discussão dos resultados
+
+Esperava-se que o ganho fosse mais significativo com a paralelização em GPU do processo de treinamento, um dos mais custosos segundo os primeiros profilings do código base. Porém, a implementação do paralelismo não resultou na superação do tempo de execução do caso base (CPU sem otimização) e, muito menos, a CPU com flag de otimização do compilador. Isso se dá pelo tempo gasto com troca de dados entre placas que no cenário de processamento em CPU é consideravelmente menor.
+
+Além disso, outro fator que explica esse comportamento é o tamanho dos dados e do modelo. Como ambos são relativamente pequenos uma CPU processando de forma serial consegue dar conta do trabalho de forma muito eficiente. Porém, quando o volume de dados e neurônios dentro da rede aumenta, essa vantagem pode ser perdida e uma estratégia paralelizada pode se tornar mais atrativa. Adaptações para que os dados sejam transmitidos aos poucos ao invés de carregados de uma vez para a placa podem atuar para contornar problemas de memória em cenários de grande volumes de informações.
+
+### Índice das discussões e marcos
+
+- **Baseline e primeira etapa CUDA:** [Issue #1](https://github.com/YamanduGermano/aps2-supercomp/issues/1) · [tag anotada `v1-backward-gpu`](https://github.com/YamanduGermano/aps2-supercomp/tree/v1-backward-gpu) · [relatório V1](versionamento/v1/resultado.md)
+- **Forward em CUDA:** [Issue #3](https://github.com/YamanduGermano/aps2-supercomp/issues/3) · [tag anotada `v2-forward-gpu`](https://github.com/YamanduGermano/aps2-supercomp/tree/v2-forward-gpu) · [relatório V2](versionamento/v2/resultado.md)
+
 # Projeto Barenn: O Legado, a Sobrevivência e o Salto para a GPU
 
 Era uma segunda-feira aparentemente tranquila quando a demanda chegou à sua mesa. A liderança técnica se aproximou com um sorriso contido e soltou aquela frase clássica que faz qualquer engenheiro gelar por dentro:
