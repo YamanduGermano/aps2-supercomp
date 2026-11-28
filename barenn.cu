@@ -68,6 +68,28 @@ __global__ void backward_weights_calc(
     bias[id] -= learning_rate * delta[id];
 }
 
+__global__ void forward(
+    const float* weights,
+    const float* bias,
+    const float* input,
+    float* last_z,
+    float* output,
+    bool final,
+    int in_features,
+    int out_features) {
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id >= out_features) {
+        return;
+    }
+
+    float sum = bias[id];
+    for (int j = 0; j < in_features; ++j) {
+        sum += input[j] * weights[id * in_features + j];
+    }
+    last_z[id] = sum;
+    output[id] = final ? sum : fmaxf(0.0f, sum);
+}
+
 class DenseLayer {
     int in_features;
     int out_features;
@@ -76,7 +98,6 @@ class DenseLayer {
     vector<float> weights;
     vector<float> bias;
     // Dados do último forward usados para calcular os gradientes.
-    vector<float> last_input;
     vector<float> last_z;
     
     // Setup GPU
@@ -84,7 +105,8 @@ class DenseLayer {
     float* d_delta;
     float* d_grad_in;
     float* d_bias;
-    float* d_input;
+    float* d_last_input;
+    float* d_output;
 
 public:
     DenseLayer(
@@ -108,7 +130,8 @@ public:
         cudaMalloc(&d_delta, static_cast<size_t>(out_features) * sizeof(float));
         cudaMalloc(&d_grad_in, static_cast<size_t>(in_features) * sizeof(float));
         cudaMalloc(&d_bias, static_cast<size_t>(out_features) * sizeof(float));
-        cudaMalloc(&d_input, static_cast<size_t>(in_features) * sizeof(float));
+        cudaMalloc(&d_last_input, static_cast<size_t>(in_features) * sizeof(float));
+        cudaMalloc(&d_output, static_cast<size_t>(out_features) * sizeof(float));
         
         // Transferencia de dados CPU → GPU
         cudaMemcpy(d_bias, bias.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
@@ -116,19 +139,26 @@ public:
     }
 
     vector<float> Forward(vector<float> input) {
-        last_input = input;
-        last_z.resize(out_features);
+        cudaMemcpy(d_last_input, input.data(),
+                   static_cast<size_t>(in_features) * sizeof(float),
+                   cudaMemcpyHostToDevice);
+
+        constexpr int threads_per_block = 128;
+        const int blocks =
+            (out_features + threads_per_block - 1) / threads_per_block;
+        forward<<<blocks, threads_per_block>>>(
+            d_wghts, d_bias, d_last_input, d_delta, d_output,
+            final, in_features, out_features);
+        cudaDeviceSynchronize();
+
         vector<float> out(out_features);
-        // Cada neurônio soma o viés aos produtos entre entradas e pesos.
-        for (int i = 0; i < out_features; ++i) {
-            float sum = bias[i];
-            for (int j = 0; j < in_features; ++j) {
-                sum += input[j] * weights[i*in_features + j];
-            }
-            last_z[i] = sum;
-            // As camadas ocultas usam ReLU. A última devolve escores lineares.
-            out[i] = final ? sum : max(0.0f, sum);
-        }
+        last_z.resize(out_features);
+        cudaMemcpy(out.data(), d_output,
+                   static_cast<size_t>(out_features) * sizeof(float),
+                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(last_z.data(), d_delta,
+                   static_cast<size_t>(out_features) * sizeof(float),
+                   cudaMemcpyDeviceToHost);
         return out;
     }
 
@@ -143,8 +173,6 @@ public:
         }
 
         cudaMemcpy(d_delta, delta.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_input, last_input.data(), static_cast<size_t>(in_features) * sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_bias, bias.data(), static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyHostToDevice);
 
 
         constexpr int threads_per_block = 128;
@@ -162,7 +190,7 @@ public:
         // int out_features
 
         backward_weights_calc<<<update_blocks, threads_per_block>>>(
-            d_delta, d_wghts, d_bias, d_input, learning_rate, in_features, out_features);
+            d_delta, d_wghts, d_bias, d_last_input, learning_rate, in_features, out_features);
         // const float* delta,
         // float* weights,
         // float* bias,
@@ -176,8 +204,6 @@ public:
         vector<float> grad_in(in_features);
         // Transferencia de dados GPU → CPU
         cudaMemcpy(grad_in.data(), d_grad_in, static_cast<size_t>(in_features) * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(weights.data(), d_wghts, static_cast<size_t>(in_features) * out_features * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(bias.data(), d_bias, static_cast<size_t>(out_features) * sizeof(float), cudaMemcpyDeviceToHost);
         
         return grad_in;
     }
