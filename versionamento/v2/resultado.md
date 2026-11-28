@@ -76,6 +76,7 @@ vector<float> Backward(vector<float> grad_out, float learning_rate) {
 
 ### Primeira Iteração
 Foi alterado o `Baren::Forward` para que os loops sejam paralelizados e utilizem os dados carregados na memória global.
+Os loops aninhados foram substituidos por um loop único com paralelização entre threads.
 
 ```raw
 Tempo de treino 16.1344 s
@@ -83,17 +84,20 @@ Tempo de treino 16.1344 s
 
 
 ![evidencia](images/com_otimizacao.png)
-**38% do tempo da GPU foi dedicado à transferência de dados**
+**31% do tempo da GPU foi dedicado à transferência de dados**
 
 ## Resultado
-O resultado faz parte 
+Comparado à versão passada que teve 38% do tempo, houve uma redução de transferência de dados entre GPU e CPU. Isso possibilitou um ganho em tempo de execução de aproximadadamente -2s.
+
+Parte do motivo do speedup do cálculo não ser tão significativo pode ser o eixo do vetor em que a paralelização foi feita.
+Os somatórios percorrem o "eixo X" do vetor 2D `weights`, ou seja, um somatório para cada neurônio de saída. Como é criada uma thread para cada calcular o somatório para cada neurônio de saída e a quantidade deles é menor do que a quantidade de neurônios de entrada o speedup fica limitado.
 
 
 Resumo das etapas
 ---
 
-| Hardware de execução |                  Commit                  | Tempo de execução |
-| :------------------: | :--------------------------------------: | :---------------: |
-|  Franky (merry_cpu)  |              (Código Base)               |      14.55s       |
-|  Franky (merry_gpu)  |                   (V1)                   |      19.07s       |
-|  Franky (merry_gpu)  | Otimização da alocação da memória de GPU |      19.07s       |
+| Hardware de execução |              Commit              | Tempo de execução |
+| :------------------: | :------------------------------: | :---------------: |
+|  Franky (merry_cpu)  |          (Código Base)           |      14.55s       |
+|  Franky (merry_gpu)  |               (V1)               |      19.07s       |
+|  Franky (merry_gpu)  | Forward com paralelização em GPU |      16.13s       |
